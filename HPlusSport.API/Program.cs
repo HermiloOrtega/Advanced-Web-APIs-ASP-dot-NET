@@ -52,6 +52,12 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+var apiVersionSet = app.NewApiVersionSet()
+	.HasApiVersion(new ApiVersion(1, 0))
+	.HasApiVersion(new ApiVersion(2, 0))
+	.ReportApiVersions()
+	.Build();
+
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ShopContext>();
@@ -60,56 +66,70 @@ using (var scope = app.Services.CreateScope())
 
 app.MapGet("/products", async (ShopContext _context, [AsParameters] ProductQueryParameters queryParameters) =>
 {
-	IQueryable<Product> products = _context.Products;
+    IQueryable<Product> products = _context.Products;
 
-	if (queryParameters.MinPrice != null)
-	{
-		products = products.Where(
-			p => p.Price >= queryParameters.MinPrice.Value);
-	}
+    if (queryParameters.MinPrice != null)
+    {
+        products = products.Where(
+            p => p.Price >= queryParameters.MinPrice.Value);
+    }
 
-	if (queryParameters.MaxPrice != null)
-	{
-		products = products.Where(
-			p => p.Price <= queryParameters.MaxPrice.Value);
-	}
+    if (queryParameters.MaxPrice != null)
+    {
+        products = products.Where(
+            p => p.Price <= queryParameters.MaxPrice.Value);
+    }
 
-	if (!string.IsNullOrEmpty(queryParameters.SearchTerm))
-	{
-		products = products.Where(
-			p => p.Sku.ToLower().Contains(queryParameters.SearchTerm.ToLower()) ||
-				 p.Name.ToLower().Contains(queryParameters.SearchTerm.ToLower()));
-	}
+    if (!string.IsNullOrEmpty(queryParameters.SearchTerm))
+    {
+        products = products.Where(
+            p => p.Sku.ToLower().Contains(queryParameters.SearchTerm.ToLower()) ||
+                 p.Name.ToLower().Contains(queryParameters.SearchTerm.ToLower()));
+    }
 
-	if (!string.IsNullOrEmpty(queryParameters.Sku))
-	{
-		products = products.Where(
-			p => p.Sku == queryParameters.Sku);
-	}
+    if (!string.IsNullOrEmpty(queryParameters.Sku))
+    {
+        products = products.Where(
+            p => p.Sku == queryParameters.Sku);
+    }
 
-	if (!string.IsNullOrEmpty(queryParameters.Name))
-	{
-		products = products.Where(
-			p => p.Name.ToLower().Contains(
-				queryParameters.Name.ToLower()));
-	}
+    if (!string.IsNullOrEmpty(queryParameters.Name))
+    {
+        products = products.Where(
+            p => p.Name.ToLower().Contains(
+                queryParameters.Name.ToLower()));
+    }
 
-	if (!string.IsNullOrEmpty(queryParameters.SortBy))
-	{
-		if (typeof(Product).GetProperty(queryParameters.SortBy) != null)
-		{
-			products = products.OrderByCustom(
-				queryParameters.SortBy,
-				queryParameters.SortOrder);
-		}
-	}
+    if (!string.IsNullOrEmpty(queryParameters.SortBy))
+    {
+        if (typeof(Product).GetProperty(queryParameters.SortBy) != null)
+        {
+            products = products.OrderByCustom(
+                queryParameters.SortBy,
+                queryParameters.SortOrder);
+        }
+    }
 
-	products = products
-		.Skip(queryParameters.Size * (queryParameters.Page - 1))
-		.Take(queryParameters.Size);
+    products = products
+        .Skip(queryParameters.Size * (queryParameters.Page - 1))
+        .Take(queryParameters.Size);
 
-	return await products.ToArrayAsync();
+    return await products.ToArrayAsync();
 });
+
+app.MapGet("/allproducts", async (ShopContext _context) =>
+{
+    return await _context.Products.ToArrayAsync();
+})
+	.WithApiVersionSet(apiVersionSet)
+	.MapToApiVersion(new ApiVersion(1, 0));
+
+app.MapGet("/allproducts", async (ShopContext _context) =>
+{
+	return await _context.Products.Where(p => p.IsAvailable == true).ToArrayAsync();
+})
+	.WithApiVersionSet(apiVersionSet)
+	.MapToApiVersion(new ApiVersion(2, 0));
 
 app.MapGet("/products/{id}", async (int id, ShopContext _context) =>
 {
