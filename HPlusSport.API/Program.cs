@@ -3,6 +3,9 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NuGet.Packaging.Signing;
+using Microsoft.Extensions.Options;
+using Swashbuckle.AspNetCore.SwaggerGen;
+using HPlusSport.API;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +26,11 @@ builder.Services.AddApiVersioning(options =>
         options.SubstituteApiVersionInUrl = true;
     });
 
+builder.Services.AddHsts(options =>
+{
+    options.MaxAge = TimeSpan.FromDays(365);
+});
+
 builder.Services.AddControllers()/*
     .ConfigureApiBehaviorOptions(options =>
     {
@@ -30,7 +38,12 @@ builder.Services.AddControllers()/*
     })*/;
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+
+builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.OperationFilter<SwaggerDefaultValues>();
+});
 
 builder.Services.AddDbContext<ShopContext>(options =>
 {
@@ -43,7 +56,20 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(options =>
+	{
+		var descriptions = app.DescribeApiVersions();
+
+		foreach (var description in app.DescribeApiVersions())
+		{
+			options.SwaggerEndpoint(
+				$"/swagger/{description.GroupName}/swagger.json",
+				description.GroupName.ToUpperInvariant());
+		}
+	});
+} else
+{
+	app.UseHsts();
 }
 
 app.UseHttpsRedirection();
